@@ -13,7 +13,6 @@ import random
 from itertools import islice
 
 
-ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 common_aa = "ARNDCQEGHILKMFPSTWYV"
 
 def chunk_list(it, size):
@@ -114,12 +113,13 @@ class Helper:
                  alleles: List[str] = ('HLA-A03:02', 'HLA-A02:02'),
                  n_threads: int = 0,
                  tmp_dir: str = '/tmp',
-                 output_dir: str = None):
+                 output_dir: str = None,
+                 netmhcpan_path = 'netMHCpan'):
         """
         Helper class to run NetMHCpan on multiple CPUs from Python. Can annotated a file with peptides in it.
         """
 
-        self.NETMHCPAN = 'netMHCpan'
+        self.NETMHCPAN = netmhcpan_path
 
         if isinstance(alleles, str):
             if ',' in alleles:
@@ -130,6 +130,7 @@ class Helper:
                 alleles = [alleles]
         self.alleles = alleles
         self.min_length = 8
+        self.max_length = 15
         self.peptides = peptides
         self.netmhcpan_peptides = dict()
         self.predictions = dict()
@@ -264,7 +265,7 @@ class Helper:
         for line in content:
             pep = replace_uncommon_aas(remove_modifications(remove_previous_and_next_aa(line[pep_index])))
             # pep = self.netmhcpan_peptides[pep]
-            if len(pep) < self.min_length:
+            if len(pep) < self.min_length or len(pep) > self.max_length:
                 continue
             for allele in self.alleles:
                 rank = float(self.predictions[pep][allele]['rank'])
@@ -281,9 +282,18 @@ class Helper:
 if __name__ == '__main__':
     from sys import argv
     from os import path
-    pep_file = argv[1]
-    alleles = argv[2:]
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Annotate a peptide file (e.g. PSM or peptide file from a database search) with NetMHCpan eluted ligand %rank predictions. Only peptides between 8 and 15 mers (inclusive) in length are kept")
+    parser.add_argument('-f', '--filename', type=str, required=True, help='The peptide file. It must contain headers. If it is just a list of peptides, add the word Peptide to the top of it.')
+    parser.add_argument('-a', '--alleles', type=str, required=True, nargs='+', help='One or more alleles, space separated. The format must be compliant with NetMHCpan allele input.')
+    parser.add_argument('-p', '--peptide_column', type=str, default='Peptide', help='The header of the column containing the peptide list. Defaults to "Peptide".')
+    parser.add_argument('-n', '--netmhcpan_path', type=str, default='netMHCpan', help='The full path to the script which starts NetMHCpan (i.e. the "netMHCpan" script which lives in the netMHCpan directory). Only specify this \
+        if there is NetMHCpan is not installed in your PATH or Python has an issue starting it from the PATH.')
+    args = parser.parse_args()
+    pep_file = args.filename
+    alleles = args.alleles
     output_dir = path.split(pep_file)[0]
 
-    predictor = Helper(alleles=alleles, output_dir=output_dir)
-    predictor.annotate_file(pep_file)
+    predictor = Helper(alleles=alleles, output_dir=output_dir, netmhcpan_path=args.netmhcpan_path)
+    predictor.annotate_file(pep_file, peptide_column=args.peptide_column)
