@@ -44,6 +44,11 @@ with open(f_out, 'w') as f:
 		hit = spectrum_query.find('{}search_result'.format(ns)).find('{}search_hit'.format(ns))
 		mod_info = hit.find('{}modification_info'.format(ns))
 		pep = hit.attrib['peptide']
+
+		# Check that peptide length is okay
+		if len(pep) < 8 or len(pep) > 15:
+			continue
+		
 		protein = hit.attrib['protein']
 
 		if protein.startswith(args.decoy_prefix):
